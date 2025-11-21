@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "270368709132",
+    "firebase_url": "https://appmedidordc-default-rtdb.firebaseio.com",
+    "project_id": "appmedidordc",
+    "storage_bucket": "appmedidordc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:270368709132:android:7d9d6908d048f76a2cec29",
+        "android_client_info": {
+          "package_name": "com.example.myapplication"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDZ119mG8Mx2jeDFeJyh6OqbuSnN3tTAD8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
