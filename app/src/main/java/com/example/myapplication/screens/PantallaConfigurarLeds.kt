@@ -16,28 +16,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.example.myapplication.models.LedConfig
 import com.google.firebase.Firebase
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.database
-import com.example.myapplication.models.LedConfig
-
 
 @Composable
 fun ConfigLedsScreen(navController: NavHostController) {
     val context = LocalContext.current
-
-    // Ruta en Firebase
     val dbPath = "configuracion_leds"
 
-    // Estados locales
     var localConfig by remember { mutableStateOf(LedConfig()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // ---------------------------------------------------------
-    // 1. LECTURA DE FIREBASE (Integrada)
-    // ---------------------------------------------------------
     DisposableEffect(Unit) {
         val database = Firebase.database
         val myRef = database.getReference(dbPath)
@@ -45,9 +38,7 @@ fun ConfigLedsScreen(navController: NavHostController) {
         val listener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val value = snapshot.getValue(LedConfig::class.java)
-                if (value != null) {
-                    localConfig = value
-                }
+                if (value != null) localConfig = value
                 isLoading = false
             }
 
@@ -56,14 +47,12 @@ fun ConfigLedsScreen(navController: NavHostController) {
                 isLoading = false
             }
         }
-
         myRef.addValueEventListener(listener)
         onDispose { myRef.removeEventListener(listener) }
     }
 
     Scaffold(
         bottomBar = {
-            // Barra de navegación integrada
             NavigationBar {
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Home, contentDescription = "Inicio") },
@@ -91,9 +80,7 @@ fun ConfigLedsScreen(navController: NavHostController) {
             } else {
                 LazyColumn {
                     item {
-                        // --- Sección Frecuencias ---
                         SectionTitle("Frecuencia de Parpadeo (Hz)")
-
                         SliderControl("Verde", localConfig.freqVerde, 1f, 10f, Color.Green) {
                             localConfig = localConfig.copy(freqVerde = it)
                         }
@@ -106,9 +93,7 @@ fun ConfigLedsScreen(navController: NavHostController) {
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // --- Sección Umbrales ---
                         SectionTitle("Umbrales de Decibelios (dB)")
-
                         SliderControl("Inicio Riesgo Bajo", localConfig.umbralVerde, 0f, 120f, Color.Green) {
                             localConfig = localConfig.copy(umbralVerde = it)
                         }
@@ -121,14 +106,10 @@ fun ConfigLedsScreen(navController: NavHostController) {
 
                         Spacer(modifier = Modifier.height(30.dp))
 
-                        // ---------------------------------------------------------
-                        // 2. ESCRITURA EN FIREBASE (Integrada)
-                        // ---------------------------------------------------------
                         Button(
                             onClick = {
                                 val database = Firebase.database
                                 val myRef = database.getReference(dbPath)
-
                                 myRef.setValue(localConfig)
                                     .addOnSuccessListener {
                                         Toast.makeText(context, "Guardado exitoso", Toast.LENGTH_SHORT).show()
@@ -147,8 +128,6 @@ fun ConfigLedsScreen(navController: NavHostController) {
         }
     }
 }
-
-// --- Componentes Auxiliares ---
 
 @Composable
 fun SectionTitle(text: String) {

@@ -1,11 +1,13 @@
+package com.example.myapplication
+
 import androidx.compose.runtime.Composable
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.myapplication.screens.Menu
-import com.example.myapplication.screens.
-import com.example.myapplication.PantallaConfigHorarios
-import com.example.myapplication.PantallaMonitor
+import com.example.myapplication.screens.ConfigLedsScreen
+import com.example.myapplication.screens.MenuScreen
+import com.example.myapplication.screens.PantallaConfigHorarios
+import com.example.myapplication.screens.PantallaMonitor
 
 @Composable
 fun NavegacionApp() {
@@ -13,19 +15,22 @@ fun NavegacionApp() {
 
     NavHost(navController = navController, startDestination = "menu") {
 
-
+        // Pantalla de Menú Principal
         composable("menu") {
-            Menu(navController)
+            MenuScreen(navController)
         }
 
+        // Pantalla de Configuración de LEDs
         composable("config_leds") {
-            PantallaConfigurarLeds(navController)
+            ConfigLedsScreen(navController)
         }
 
+        // Pantalla de Configuración de Horarios
         composable("config_horarios") {
             PantallaConfigHorarios(navController)
         }
 
+        // Pantalla del Monitor
         composable("monitor") {
             PantallaMonitor(navController)
         }

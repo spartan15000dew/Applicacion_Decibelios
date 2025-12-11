@@ -1,36 +1,55 @@
-package com.example.myapplication
+package com.example.myapplication.screens
 
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
-
-// Importamos las pantallas desde el paquete 'screens'
-import com.example.myapplication.screens.menu
-import com.example.myapplication.screens.ConfigLedsScreen  // Nombre actualizado
-
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.navigation.NavHostController
 
 @Composable
-fun NavegacionApp() {
-    val navController = rememberNavController()
+fun MenuScreen(navController: NavHostController) {
+    Scaffold { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text("Panel de Control", fontSize = 28.sp, color = MaterialTheme.colorScheme.primary)
 
-    NavHost(navController = navController, startDestination = "menu") {
+            Spacer(modifier = Modifier.height(40.dp))
 
-        composable("menu") {
-            Menu(navController)
-        }
+            // Botón ir al Monitor
+            Button(
+                onClick = { navController.navigate("monitor") },
+                modifier = Modifier.fillMaxWidth(0.7f).height(50.dp)
+            ) {
+                Text("Ver Monitor")
+            }
 
-        composable("config_leds") {
-            // Usamos el nombre del componente actualizado
-            ConfigLedsScreen(navController)
-        }
+            Spacer(modifier = Modifier.height(20.dp))
 
-        composable("config_horarios") {
-            PantallaConfigHorarios(navController)
-        }
+            // Botón Configurar LEDs
+            Button(
+                onClick = { navController.navigate("config_leds") },
+                modifier = Modifier.fillMaxWidth(0.7f).height(50.dp)
+            ) {
+                Text("Configurar LEDs")
+            }
 
-        composable("monitor") {
-            PantallaMonitor(navController)
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Botón Configurar Horarios
+            Button(
+                onClick = { navController.navigate("config_horarios") },
+                modifier = Modifier.fillMaxWidth(0.7f).height(50.dp)
+            ) {
+                Text("Configurar Horarios")
+            }
         }
     }
 }

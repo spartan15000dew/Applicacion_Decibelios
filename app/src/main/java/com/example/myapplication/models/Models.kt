@@ -1,18 +1,24 @@
 package com.example.myapplication.models
 
 
-data class SimulacionData(
-    val decibelios: Int = 0,
-    val actividad: String = "Sin datos"
-)
-
-data class Horario(
-    val inicio: String = "08:00",
-    val fin: String = "18:00"
-)
 
 data class LedConfig(
-    val estado: Boolean = false,
-    val brillo: Int = 0,
-    val color: String = "#FFFFFF"
+    var freqVerde: Float = 1f,
+    var freqAmarillo: Float = 1f,
+    var freqRojo: Float = 1f,
+    var umbralVerde: Float = 50f,
+    var umbralAmarillo: Float = 70f,
+    var umbralRojo: Float = 90f
+)
+
+
+data class Horario(
+    var inicio: String = "08:00",
+    var fin: String = "18:00"
+)
+
+
+data class SimulacionData(
+    var decibelios: Int = 0,
+    var actividad: String = ""
 )
