@@ -1,0 +1,252 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include <ArduinoJson.h>
+#include <time.h> // IMPORTANTE: Librería para la hora
+
+// 📡 Configuración WiFi
+const char* ssid = "Gabriel Alvarez";
+const char* password = "Gabriel1";
+
+// 🔥 Configuración Firebase
+const char* firebase_host = "appmedidordc-default-rtdb.firebaseio.com"; 
+const char* firebase_auth = ""; 
+
+// Rutas
+String config_leds_url = "https://" + String(firebase_host) + "/configuracion_leds.json";
+String simulacion_url = "https://" + String(firebase_host) + "/simulacion.json";
+String historial_base_url = "https://" + String(firebase_host) + "/historial_hoy/";
+
+// 🚦 Pines
+const int pinSensor = A0; 
+const int ledVerde = D1;
+const int ledAmarillo = D2;
+const int ledRojo = D3;
+
+// Variables Config
+float freqVerde = 1.0; float freqAmarillo = 1.0; float freqRojo = 1.0;
+int umbralVerde = 40; int umbralAmarillo = 60; int umbralRojo = 80;
+
+// Variables Tiempo
+unsigned long lastConfigUpdate = 0;
+unsigned long lastDataUpload = 0;
+unsigned long previousMillisLed = 0; 
+
+const int configInterval = 3000; 
+const int uploadInterval = 500;  
+
+// Variables Historial
+int maxDbCurrentHour = 0;
+int currentHour = -1;
+
+bool ledState = false;
+
+WiFiClientSecure client;
+
+// Configuración Horaria (Ej: Chile/Bolivia/Venezuela UTC-4 = -14400)
+// Si tu hora sale mal, ajusta este número: UTC * 3600
+const long  gmtOffset_sec = -14400; 
+const int   daylightOffset_sec = 0; 
+
+void setup() {
+  Serial.begin(115200);
+  Serial.println("\n=== INICIANDO SISTEMA ===");
+  
+  pinMode(ledVerde, OUTPUT); pinMode(ledAmarillo, OUTPUT); pinMode(ledRojo, OUTPUT); pinMode(pinSensor, INPUT);
+
+  WiFi.begin(ssid, password);
+  Serial.print("📡 WiFi: ");
+  while (WiFi.status() != WL_CONNECTED) { delay(500); Serial.print("."); }
+  Serial.println(" Conectado");
+  
+  client.setInsecure(); 
+
+  // --- INICIAR RELOJ DE INTERNET ---
+  configTime(gmtOffset_sec, daylightOffset_sec, "pool.ntp.org", "time.nist.gov");
+  Serial.print("⏳ Sincronizando hora");
+  
+  time_t now = time(nullptr);
+  while (now < 8 * 3600 * 2) { // Esperar a que la hora sea válida (> año 2000 aprox)
+    delay(500);
+    Serial.print(".");
+    now = time(nullptr);
+  }
+  Serial.println("\n✅ Hora obtenida de internet");
+  
+  // Imprimir hora inicial para confirmar
+  struct tm* timeinfo = localtime(&now);
+  Serial.printf("⌚ Hora de inicio: %02d:%02d:%02d\n", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+}
+
+void loop() {
+  unsigned long currentMillis = millis();
+
+  // 1. LEER CONFIG
+  if (currentMillis - lastConfigUpdate >= configInterval) {
+    updateConfiguration();
+    lastConfigUpdate = currentMillis;
+  }
+
+  // 2. SENSOR
+  int db = getDecibels();
+
+  // 3. LEDS
+  controlLeds(db, currentMillis);
+
+  // 4. PROCESAR HISTORIAL (Logica agregada)
+  processHourlyMax(db);
+
+  // 5. SUBIR DATOS Y LOGUEAR HORA
+  if (currentMillis - lastDataUpload >= uploadInterval) {
+    String actividad = getActivityName(db);
+    
+    // --- LOG DE HORA AQUÍ ---
+    time_t now = time(nullptr);
+    struct tm* timeinfo = localtime(&now);
+    Serial.printf("⌚ [%02d:%02d:%02d] ", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+    
+    uploadDataToFirebase(db, actividad);
+    lastDataUpload = currentMillis;
+  }
+}
+
+// ==========================================
+//           FUNCIONES LÓGICAS
+// ==========================================
+
+// Lógica para guardar el máximo por hora en Firebase
+void processHourlyMax(int currentDb) {
+  time_t now = time(nullptr);
+  struct tm* timeinfo = localtime(&now);
+  int nowHour = timeinfo->tm_hour;
+
+  // Si cambia la hora, reseteamos el máximo local
+  if (nowHour != currentHour) {
+    currentHour = nowHour;
+    maxDbCurrentHour = 0;
+    Serial.printf("\n📅 Cambio de hora detectado: %02d:00. Reseteando conteo.\n", currentHour);
+  }
+
+  // Si superamos el record de esta hora
+  if (currentDb > maxDbCurrentHour) {
+    maxDbCurrentHour = currentDb;
+    Serial.printf("📈 Nuevo RÉCORD a las %02d hrs: %d dB. Guardando en Firebase...\n", currentHour, maxDbCurrentHour);
+    
+    // Subir a: historial_hoy/HH
+    updateHourlyMaxInFirebase(currentHour, maxDbCurrentHour);
+  }
+}
+
+void updateHourlyMaxInFirebase(int hour, int maxDb) {
+  HTTPClient https;
+  char hourStr[3];
+  sprintf(hourStr, "%02d", hour); // Formato "09", "10"
+  
+  String url = historial_base_url + String(hourStr) + ".json";
+  String payload = String(maxDb);
+
+  if (https.begin(client, url)) {
+    int httpCode = https.PUT(payload);
+    if (httpCode > 0) {
+      Serial.println("   ✅ Historial actualizado OK");
+    } else {
+      Serial.printf("   ❌ Error Historial: %s\n", https.errorToString(httpCode).c_str());
+    }
+    https.end();
+  }
+}
+
+int getDecibels() {
+  unsigned long startMillis = millis();
+  unsigned int signalMax = 0;
+  unsigned int signalMin = 1024;
+  
+  while (millis() - startMillis < 50) {
+    int sample = analogRead(pinSensor);
+    if (sample < 1024 && sample > 0) {
+      if (sample > signalMax) signalMax = sample;
+      if (sample < signalMin) signalMin = sample;
+    }
+  }
+  
+  int peakToPeak = signalMax - signalMin;
+  
+  // Tu mapeo personalizado
+  double db = map(peakToPeak, 1, 10, 45, 110); 
+  
+  if (db > 120) db = 120;
+  return (int)db;
+}
+
+void controlLeds(int db, unsigned long currentMillis) {
+  float currentFreq = 1; int activeLed = -1; 
+  if (db >= umbralRojo) { activeLed = 2; currentFreq = freqRojo; }
+  else if (db >= umbralAmarillo) { activeLed = 1; currentFreq = freqAmarillo; }
+  else if (db >= umbralVerde) { activeLed = 0; currentFreq = freqVerde; }
+  else { digitalWrite(ledVerde, LOW); digitalWrite(ledAmarillo, LOW); digitalWrite(ledRojo, LOW); return; }
+
+  if (currentFreq <= 0) currentFreq = 1; 
+  long interval = 1000 / currentFreq / 2; 
+
+  if (currentMillis - previousMillisLed >= interval) {
+    previousMillisLed = currentMillis; ledState = !ledState; 
+    digitalWrite(ledVerde, LOW); digitalWrite(ledAmarillo, LOW); digitalWrite(ledRojo, LOW);
+    if (ledState) {
+      if (activeLed == 0) digitalWrite(ledVerde, HIGH);
+      if (activeLed == 1) digitalWrite(ledAmarillo, HIGH);
+      if (activeLed == 2) digitalWrite(ledRojo, HIGH);
+    }
+  }
+}
+
+void updateConfiguration() {
+  HTTPClient https;
+  if (https.begin(client, config_leds_url)) {
+    int httpCode = https.GET();
+    if (httpCode == HTTP_CODE_OK) {
+      String payload = https.getString();
+      StaticJsonDocument<768> doc;
+      DeserializationError error = deserializeJson(doc, payload);
+
+      if (!error) {
+        freqVerde = doc["freqVerde"]; freqAmarillo = doc["freqAmarillo"]; freqRojo = doc["freqRojo"];
+        umbralVerde = doc["umbralVerde"]; umbralAmarillo = doc["umbralAmarillo"]; umbralRojo = doc["umbralRojo"];
+        
+        // Serial.println("⚙️ Config leída OK"); // Descomentar si quieres ver config
+      } 
+    }
+    https.end();
+  }
+}
+
+void uploadDataToFirebase(int db, String actividad) {
+  HTTPClient https;
+  StaticJsonDocument<200> doc;
+  doc["decibelios"] = db;
+  doc["actividad"] = actividad;
+  String jsonPayload;
+  serializeJson(doc, jsonPayload);
+
+  Serial.print("🎤 SENSOR: "); Serial.print(db); Serial.print("dB -> ");
+
+  if (https.begin(client, simulacion_url)) {
+    https.addHeader("Content-Type", "application/json");
+    int httpCode = https.PUT(jsonPayload);
+    
+    if (httpCode > 0) {
+      Serial.println("✅ Enviado");
+    } else {
+      Serial.printf("❌ Error: %s\n", https.errorToString(httpCode).c_str());
+    }
+    https.end();
+  } else {
+    Serial.println("❌ Error Conexión");
+  }
+}
+
+String getActivityName(int db) {
+  if (db >= umbralRojo) return "Peligroso";
+  if (db >= umbralAmarillo) return "Ruidoso";
+  if (db >= umbralVerde) return "Moderado";
+  return "Silencioso"; 
+}
