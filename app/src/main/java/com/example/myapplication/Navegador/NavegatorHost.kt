@@ -12,12 +12,23 @@ import com.example.myapplication.screens.PantallaHistorial
 import com.example.myapplication.screens.PantallaDetector
 import com.example.myapplication.screens.PantallaConfigAlertas
 import com.example.myapplication.screens.PantallaZonasAlertas
+import com.example.myapplication.screens.LoginScreen
+import com.example.myapplication.screens.RegisterScreen
+
 
 @Composable
 fun NavegacionApp() {
     val navController = rememberNavController()
 
-    NavHost(navController = navController, startDestination = "menu") {
+    NavHost(navController = navController, startDestination = "login") {
+        // --- Pantallas de Autenticación ---
+        composable("login") {
+            LoginScreen(navController)
+        }
+
+        composable("register") {
+            RegisterScreen(navController)
+        }
 
         // Pantalla de Menú Principal
         composable("menu") {

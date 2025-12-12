@@ -40,3 +40,8 @@ data class LogEntry(
     var timestamp: Long = 0,
     var type: String = "info"
 )
+data class User(
+    var username: String = "",
+    var email: String = "",
+    var passwordHash: String = "" // Guardaremos el hash, no la contraseña real
+)
