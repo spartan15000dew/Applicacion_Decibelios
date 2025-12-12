@@ -1,6 +1,8 @@
 package com.example.myapplication.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -15,23 +17,52 @@ fun MenuScreen(navController: NavHostController) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .padding(padding)
+                .verticalScroll(rememberScrollState()), // Permite scroll si hay muchos botones
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
+            Spacer(modifier = Modifier.height(30.dp))
+
             Text("Panel de Control", fontSize = 28.sp, color = MaterialTheme.colorScheme.primary)
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(30.dp))
 
-            // Botón ir al Monitor
+            // --- VISTAS DE MONITORIZACIÓN ---
+
+            // Botón ir al Monitor Principal
             Button(
                 onClick = { navController.navigate("monitor") },
                 modifier = Modifier.fillMaxWidth(0.7f).height(50.dp)
             ) {
-                Text("Ver Monitor")
+                Text("Monitor General")
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Botón Detector Live View (Nueva Pantalla)
+            Button(
+                onClick = { navController.navigate("detector_live") },
+                modifier = Modifier.fillMaxWidth(0.7f).height(50.dp)
+            ) {
+                Text("Detector en Vivo")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Botón Historial (Nueva Pantalla)
+            Button(
+                onClick = { navController.navigate("historial") },
+                modifier = Modifier.fillMaxWidth(0.7f).height(50.dp)
+            ) {
+                Text("Ver Historial")
+            }
+
+            Spacer(modifier = Modifier.height(30.dp))
+            Divider(modifier = Modifier.fillMaxWidth(0.8f))
+            Spacer(modifier = Modifier.height(30.dp))
+
+            // --- CONFIGURACIONES ---
 
             // Botón Configurar LEDs
             Button(
@@ -41,7 +72,7 @@ fun MenuScreen(navController: NavHostController) {
                 Text("Configurar LEDs")
             }
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Botón Configurar Horarios
             Button(
@@ -50,6 +81,28 @@ fun MenuScreen(navController: NavHostController) {
             ) {
                 Text("Configurar Horarios")
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Botón Configurar Alertas (Nueva Pantalla)
+            Button(
+                onClick = { navController.navigate("config_alertas") },
+                modifier = Modifier.fillMaxWidth(0.7f).height(50.dp)
+            ) {
+                Text("Configurar Alertas")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Botón Zonas de Alerta (Nueva Pantalla)
+            Button(
+                onClick = { navController.navigate("zonas_alertas") },
+                modifier = Modifier.fillMaxWidth(0.7f).height(50.dp)
+            ) {
+                Text("Zonas de Alerta")
+            }
+
+            Spacer(modifier = Modifier.height(30.dp))
         }
     }
 }

@@ -8,6 +8,10 @@ import com.example.myapplication.screens.ConfigLedsScreen
 import com.example.myapplication.screens.MenuScreen
 import com.example.myapplication.screens.PantallaConfigHorarios
 import com.example.myapplication.screens.PantallaMonitor
+import com.example.myapplication.screens.PantallaHistorial
+import com.example.myapplication.screens.PantallaDetector
+import com.example.myapplication.screens.PantallaConfigAlertas
+import com.example.myapplication.screens.PantallaZonasAlertas
 
 @Composable
 fun NavegacionApp() {
@@ -30,9 +34,31 @@ fun NavegacionApp() {
             PantallaConfigHorarios(navController)
         }
 
-        // Pantalla del Monitor
+        // Pantalla del Monitor (Monitor original)
         composable("monitor") {
             PantallaMonitor(navController)
+        }
+
+        // --- Nuevas Pantallas Agregadas ---
+
+        // Pantalla de Historial de Registros
+        composable("historial") {
+            PantallaHistorial(navController)
+        }
+
+        // Pantalla de Detector en Vivo (Live View)
+        composable("detector_live") {
+            PantallaDetector(navController)
+        }
+
+        // Pantalla de Configuración de Alertas
+        composable("config_alertas") {
+            PantallaConfigAlertas(navController)
+        }
+
+        // Pantalla de Zonas de Alerta
+        composable("zonas_alertas") {
+            PantallaZonasAlertas(navController)
         }
     }
 }
