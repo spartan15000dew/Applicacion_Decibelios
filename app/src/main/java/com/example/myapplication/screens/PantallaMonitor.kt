@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.myapplication.models.Horario
 import com.example.myapplication.models.SimulacionData
+import com.example.myapplication.utils.DeviceSession // <--- NECESARIO PARA MULTI-DISPOSITIVO
 import com.google.firebase.Firebase
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -30,19 +31,25 @@ import java.util.*
 @Composable
 fun PantallaMonitor(navController: NavHostController) {
 
+    // 1. OBTENER ID DEL DISPOSITIVO
+    val deviceId = DeviceSession.currentDeviceId
+    val deviceName = DeviceSession.currentDeviceName
+
     // Estados
     var simulacion by remember { mutableStateOf<SimulacionData?>(null) }
     var horarioConfig by remember { mutableStateOf<Horario?>(null) }
-    // Nuevo estado para guardar el mapa de horas -> decibelios máximos
     var historialMap by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
 
     DisposableEffect(Unit) {
         val db = Firebase.database
-        val refSimulacion = db.getReference("simulacion")
-        val refHorario = db.getReference("horarios/principal")
-        val refHistorial = db.getReference("historial_hoy") // Nueva referencia
 
-        // Listener Simulación (Tiempo Real)
+        // --- AQUÍ ESTÁ LA ADAPTACIÓN CLAVE ---
+        // Usamos la variable 'deviceId' para apuntar a la carpeta correcta
+        val refSimulacion = db.getReference("devices_data/$deviceId/simulacion")
+        val refHorario = db.getReference("devices_data/$deviceId/horarios")
+        val refHistorial = db.getReference("devices_data/$deviceId/historial_hoy")
+
+        // Listener Simulación
         val simListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val data = snapshot.getValue(SimulacionData::class.java)
@@ -54,18 +61,18 @@ fun PantallaMonitor(navController: NavHostController) {
         // Listener Horario
         val horarioListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
+                // Adaptamos para leer directo del nodo horarios
                 val data = snapshot.getValue(Horario::class.java)
                 if (data != null) horarioConfig = data
             }
             override fun onCancelled(error: DatabaseError) {}
         }
 
-        // Listener Historial (Barras por hora)
+        // Listener Historial
         val historialListener = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
                 val mapaTemp = mutableMapOf<String, Int>()
                 for (child in snapshot.children) {
-                    // La clave es la hora (ej: "08"), el valor son los dB (ej: 90)
                     val hora = child.key ?: ""
                     val dbValue = child.getValue(Int::class.java) ?: 0
                     mapaTemp[hora] = dbValue
@@ -86,10 +93,9 @@ fun PantallaMonitor(navController: NavHostController) {
         }
     }
 
-    // Cálculos de hora actual y rangos
+    // Cálculos de hora actual
     val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
     val currentTime = sdf.format(Date())
-
     // Solo la hora actual (ej: "15") para resaltar la barra actual
     val currentHourOnly = SimpleDateFormat("HH", Locale.getDefault()).format(Date())
 
@@ -100,10 +106,14 @@ fun PantallaMonitor(navController: NavHostController) {
     } catch (e: Exception) { false }
 
     val decibeliosActuales = if (dentroDeHorario) simulacion?.decibelios ?: 0 else 0
-    val actividad = if (dentroDeHorario) simulacion?.actividad ?: "Inactivo" else "Fuera de Horario"
+    val actividad = if (dentroDeHorario) simulacion?.actividad ?: "Monitor Inactivo" else "Fuera de Horario"
 
-    // Color dinámico para el valor actual
-    val mainColor = getColorForDb(decibeliosActuales)
+    // Tu lógica de colores original
+    val mainColor = when {
+        decibeliosActuales < 60 -> Color.Green
+        decibeliosActuales < 85 -> Color(0xFFFFC107) // Amarillo/Ambar
+        else -> Color.Red
+    }
 
     Scaffold(
         bottomBar = {
@@ -125,11 +135,15 @@ fun PantallaMonitor(navController: NavHostController) {
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("Monitor en Vivo", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            // Título original
+            Text("Monitor de Actividad", fontSize = 24.sp, color = MaterialTheme.colorScheme.onBackground)
+
+            // Agregamos el nombre del dispositivo para que el usuario sepa cuál mira
+            Text(deviceName, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // --- CÍRCULO CENTRAL (Valor Actual) ---
+            // --- TU CÍRCULO CENTRAL ORIGINAL ---
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
@@ -147,12 +161,29 @@ fun PantallaMonitor(navController: NavHostController) {
                 }
             }
 
+            // Texto de actividad
             Text(
                 text = actividad,
-                fontSize = 16.sp,
-                color = if (dentroDeHorario) MaterialTheme.colorScheme.primary else Color.Gray,
+                fontSize = 18.sp,
+                color = if(dentroDeHorario) mainColor else Color.Gray,
+                fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(top = 10.dp)
             )
+
+            // Texto de estado del horario
+            if (dentroDeHorario) {
+                Text(
+                    "Monitoreo Activo: ${horarioConfig?.inicio ?: "--:--"} - ${horarioConfig?.fin ?: "--:--"}",
+                    color = Color.Gray,
+                    fontSize = 12.sp
+                )
+            } else {
+                Text(
+                    "Monitoreo Pausado (Horario: ${horarioConfig?.inicio ?: "--:--"} - ${horarioConfig?.fin ?: "--:--"})",
+                    color = Color.Red,
+                    fontSize = 12.sp
+                )
+            }
 
             Spacer(modifier = Modifier.height(30.dp))
             Divider()
@@ -167,7 +198,6 @@ fun PantallaMonitor(navController: NavHostController) {
             )
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Generamos la lista de horas basada en el horario configurado
             val listaHoras = generarRangoHoras(horarioConfig?.inicio, horarioConfig?.fin)
 
             LazyRow(
@@ -175,9 +205,15 @@ fun PantallaMonitor(navController: NavHostController) {
                 modifier = Modifier.fillMaxWidth().height(150.dp)
             ) {
                 items(listaHoras) { horaStr ->
-                    // Obtenemos el valor máximo registrado para esta hora (o 0 si no hay dato)
-                    val maxDb = historialMap[horaStr] ?: 0
+                    // 1. Obtenemos el valor de la BD
+                    var maxDb = historialMap[horaStr] ?: 0
                     val esHoraActual = (horaStr == currentHourOnly)
+
+                    // 2. EL TRUCO VISUAL: Si es la hora actual y el valor en vivo es mayor
+                    // lo mostramos inmediatamente aunque no se haya guardado en BD aún.
+                    if (esHoraActual && decibeliosActuales > maxDb) {
+                        maxDb = decibeliosActuales
+                    }
 
                     BarraHistorial(hora = horaStr, db = maxDb, isCurrent = esHoraActual)
                 }
@@ -186,12 +222,11 @@ fun PantallaMonitor(navController: NavHostController) {
     }
 }
 
-// --- Componentes Auxiliares ---
+// --- Componentes Auxiliares (Tu diseño original) ---
 
 @Composable
 fun BarraHistorial(hora: String, db: Int, isCurrent: Boolean) {
     val barColor = getColorForDb(db)
-    // Altura máxima de la barra (ej: 120dp). Calculamos porcentaje basado en 120dB máx.
     val porcentaje = (db / 120f).coerceIn(0.1f, 1f)
 
     Column(
@@ -199,14 +234,14 @@ fun BarraHistorial(hora: String, db: Int, isCurrent: Boolean) {
         verticalArrangement = Arrangement.Bottom,
         modifier = Modifier.fillMaxHeight()
     ) {
-        // Valor numérico arriba de la barra
+        // Valor numérico arriba
         Text(text = "$db", fontSize = 12.sp, color = Color.Gray)
 
         // La Barra
         Box(
             modifier = Modifier
-                .width(20.dp) // Ancho de la barra
-                .fillMaxHeight(porcentaje) // Altura dinámica
+                .width(20.dp)
+                .fillMaxHeight(porcentaje)
                 .background(
                     color = if (db == 0) Color.LightGray else barColor,
                     shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp)
@@ -215,7 +250,7 @@ fun BarraHistorial(hora: String, db: Int, isCurrent: Boolean) {
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Etiqueta de la hora (ej: "09:00")
+        // Etiqueta hora
         Text(
             text = "$hora:00",
             fontSize = 12.sp,
@@ -225,36 +260,27 @@ fun BarraHistorial(hora: String, db: Int, isCurrent: Boolean) {
     }
 }
 
-// Función auxiliar para colores
 fun getColorForDb(db: Int): Color {
     return when {
         db == 0 -> Color.Gray
         db < 60 -> Color.Green
-        db < 85 -> Color(0xFFFFC107) // Amber/Yellow
+        db < 85 -> Color(0xFFFFC107) // Amarillo
         else -> Color.Red
     }
 }
 
-// Función para generar lista de strings ["08", "09", "10"...]
 fun generarRangoHoras(inicio: String?, fin: String?): List<String> {
     if (inicio == null || fin == null) return emptyList()
-
     val lista = mutableListOf<String>()
     try {
         val hInicio = inicio.split(":")[0].toInt()
         val hFin = fin.split(":")[0].toInt()
-
         if (hInicio <= hFin) {
-            for (h in hInicio..hFin) {
-                lista.add(h.toString().padStart(2, '0'))
-            }
+            for (h in hInicio..hFin) lista.add(h.toString().padStart(2, '0'))
         } else {
-            // Caso especial si cruza medianoche (ej: 22:00 a 02:00), simple por ahora
             for (h in hInicio..23) lista.add(h.toString().padStart(2, '0'))
             for (h in 0..hFin) lista.add(h.toString().padStart(2, '0'))
         }
-    } catch (e: Exception) {
-        return listOf("08", "09", "10", "11", "12") // Fallback
-    }
+    } catch (e: Exception) { return listOf("08", "09", "10", "11", "12") }
     return lista
 }
