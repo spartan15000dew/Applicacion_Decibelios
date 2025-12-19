@@ -15,6 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.myapplication.models.Horario
+import com.example.myapplication.utils.DeviceSession // Importar Session
 import com.google.firebase.Firebase
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -24,12 +25,14 @@ import com.google.firebase.database.database
 @Composable
 fun PantallaConfigHorarios(navController: NavHostController) {
     val context = LocalContext.current
-    val dbPath = "horarios/principal"
+
+    // MODIFICACIÓN: Ruta dinámica
+    val deviceId = DeviceSession.currentDeviceId
+    val dbPath = "devices_data/$deviceId/horarios"
 
     var horario by remember { mutableStateOf(Horario()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // Leer configuración actual de Firebase
     DisposableEffect(Unit) {
         val database = Firebase.database
         val myRef = database.getReference(dbPath)
@@ -71,6 +74,8 @@ fun PantallaConfigHorarios(navController: NavHostController) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text("Configuración de Horarios", fontSize = 24.sp, color = MaterialTheme.colorScheme.onBackground)
+            Text("Editando: ${DeviceSession.currentDeviceName}", fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
+
             Spacer(modifier = Modifier.height(30.dp))
 
             if (isLoading) {

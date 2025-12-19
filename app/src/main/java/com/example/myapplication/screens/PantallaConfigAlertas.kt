@@ -6,8 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons // Import necesario
-import androidx.compose.material.icons.filled.ArrowBack // Import necesario
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.myapplication.models.AlertThreshold
 import com.example.myapplication.models.AlertsConfig
+import com.example.myapplication.utils.DeviceSession // IMPORTANTE: Importar tu utilitario de sesión
 import com.google.firebase.Firebase
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -29,13 +30,14 @@ import com.google.firebase.database.database
 @Composable
 fun PantallaConfigAlertas(navController: NavHostController) {
     val context = LocalContext.current
-    val dbPath = "configuracion_alertas"
 
-    // Estado local inicializado con valores por defecto
+    // MODIFICACIÓN: Ruta dinámica basada en el ID del dispositivo
+    val deviceId = DeviceSession.currentDeviceId
+    val dbPath = "devices_data/$deviceId/configuracion_alertas"
+
     var alertsConfig by remember { mutableStateOf(AlertsConfig()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    // Conexión a Firebase (Leer datos)
     DisposableEffect(Unit) {
         val database = Firebase.database
         val myRef = database.getReference(dbPath)
@@ -68,13 +70,10 @@ fun PantallaConfigAlertas(navController: NavHostController) {
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // --- CABECERA MODIFICADA ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
-                // Quitamos Arrangement.SpaceBetween para usar Spacer manual
             ) {
-                // 1. Botón de Retroceso
                 IconButton(onClick = { navController.popBackStack() }) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
@@ -85,20 +84,24 @@ fun PantallaConfigAlertas(navController: NavHostController) {
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                // 2. Título
-                Text(
-                    text = "Alertas", // Texto un poco más corto para que quepa bien
-                    color = Color.White,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Column {
+                    Text(
+                        text = "Alertas",
+                        color = Color.White,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    // Opcional: Mostrar en qué dispositivo estamos
+                    Text(
+                        text = "Dispositivo: $deviceId",
+                        color = Color.Gray,
+                        fontSize = 12.sp
+                    )
+                }
 
-                // 3. Empujamos el botón de guardar hacia la derecha
                 Spacer(modifier = Modifier.weight(1f))
 
-                // 4. Botón Guardar
                 TextButton(onClick = {
-                    // Guardar en Firebase
                     val database = Firebase.database
                     val myRef = database.getReference(dbPath)
                     myRef.setValue(alertsConfig)
@@ -120,7 +123,6 @@ fun PantallaConfigAlertas(navController: NavHostController) {
             } else {
                 Text("Configura los niveles de activación.", color = Color.Gray, modifier = Modifier.padding(bottom = 20.dp))
 
-                // Usamos el estado 'alertsConfig' directamente
                 AlertCard(
                     title = "Advertencia (Warning)",
                     subtitle = "Ruido potencialmente dañino",
@@ -149,7 +151,7 @@ fun PantallaConfigAlertas(navController: NavHostController) {
     }
 }
 
-// Componente visual (No necesita cambios)
+// El componente AlertCard se mantiene igual, no necesita cambios.
 @Composable
 fun AlertCard(
     title: String,

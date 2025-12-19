@@ -3,8 +3,8 @@ package com.example.myapplication.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons // Import Agregado
-import androidx.compose.material.icons.filled.ArrowBack // Import Agregado
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.*
@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.myapplication.models.SimulacionData
+import com.example.myapplication.utils.DeviceSession // Importar Session
 import com.google.firebase.Firebase
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -25,11 +26,11 @@ import com.google.firebase.database.database
 
 @Composable
 fun PantallaDetector(navController: NavHostController) {
-    // Usamos la misma ruta que tu monitor principal para que sea real
-    val dbPath = "simulacion"
+    // MODIFICACIÓN: Ruta dinámica
+    val deviceId = DeviceSession.currentDeviceId
+    val dbPath = "devices_data/$deviceId/simulacion"
 
     var currentDb by remember { mutableStateOf(0) }
-    // Podríamos guardar stats locales
     var minDb by remember { mutableStateOf(100) }
     var maxDb by remember { mutableStateOf(0) }
 
@@ -42,7 +43,6 @@ fun PantallaDetector(navController: NavHostController) {
                 val data = snapshot.getValue(SimulacionData::class.java)
                 if (data != null) {
                     currentDb = data.decibelios
-                    // Cálculos simples locales
                     if (currentDb < minDb && currentDb > 0) minDb = currentDb
                     if (currentDb > maxDb) maxDb = currentDb
                 }
@@ -60,12 +60,10 @@ fun PantallaDetector(navController: NavHostController) {
             modifier = Modifier.fillMaxSize().padding(padding).padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // --- CABECERA MODIFICADA ---
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 1. Botón Atrás
                 IconButton(onClick = { navController.popBackStack() }) {
                     Icon(
                         imageVector = Icons.Default.ArrowBack,
@@ -74,18 +72,15 @@ fun PantallaDetector(navController: NavHostController) {
                     )
                 }
 
-                // 2. Título
                 Text(
-                    text = "Live View",
+                    text = "Live View: ${DeviceSession.currentDeviceName}",
                     color = Color.White,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
 
-                // 3. Espaciador para empujar "Online" a la derecha
                 Spacer(modifier = Modifier.weight(1f))
 
-                // 4. Estado
                 Text("● Online", color = Color.Green, fontSize = 14.sp)
             }
 
@@ -114,7 +109,6 @@ fun PantallaDetector(navController: NavHostController) {
 
             Spacer(modifier = Modifier.height(40.dp))
 
-            // Stats
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 StatCard(Modifier.weight(1f), "MIN", "$minDb dB")
                 StatCard(Modifier.weight(1f), "MAX", "$maxDb dB")

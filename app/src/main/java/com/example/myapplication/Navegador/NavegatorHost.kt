@@ -13,6 +13,7 @@ import com.example.myapplication.screens.PantallaDetector
 import com.example.myapplication.screens.PantallaConfigAlertas
 import com.example.myapplication.screens.PantallaZonasAlertas
 import com.example.myapplication.screens.LoginScreen
+import com.example.myapplication.screens.PantallaSeleccionDispositivo
 import com.example.myapplication.screens.RegisterScreen
 
 
@@ -24,6 +25,9 @@ fun NavegacionApp() {
         // --- Pantallas de Autenticación ---
         composable("login") {
             LoginScreen(navController)
+        }
+        composable("device_select") {
+            PantallaSeleccionDispositivo(navController)
         }
 
         composable("register") {

@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import com.example.myapplication.models.LedConfig
+import com.example.myapplication.utils.DeviceSession // Importar Session
 import com.google.firebase.Firebase
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
@@ -26,7 +27,10 @@ import com.google.firebase.database.database
 @Composable
 fun ConfigLedsScreen(navController: NavHostController) {
     val context = LocalContext.current
-    val dbPath = "configuracion_leds"
+
+    // MODIFICACIÓN: Ruta dinámica
+    val deviceId = DeviceSession.currentDeviceId
+    val dbPath = "devices_data/$deviceId/configuracion_leds"
 
     var localConfig by remember { mutableStateOf(LedConfig()) }
     var isLoading by remember { mutableStateOf(true) }
@@ -71,6 +75,8 @@ fun ConfigLedsScreen(navController: NavHostController) {
                 .padding(16.dp)
         ) {
             Text("Configuración LEDs", fontSize = 24.sp, color = MaterialTheme.colorScheme.onBackground)
+            Text("Dispositivo: $deviceId", fontSize = 12.sp, color = Color.Gray)
+
             Spacer(modifier = Modifier.height(16.dp))
 
             if (isLoading) {
@@ -129,6 +135,7 @@ fun ConfigLedsScreen(navController: NavHostController) {
     }
 }
 
+// Funciones SectionTitle y SliderControl se mantienen igual
 @Composable
 fun SectionTitle(text: String) {
     Text(
