@@ -191,7 +191,7 @@ fun PantallaMonitor(navController: NavHostController) {
 
             // --- SECCIÓN HISTORIAL POR HORA ---
             Text(
-                "Pico Máximo por Hora",
+                "Historial por Hora",
                 fontSize = 18.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.align(Alignment.Start)

@@ -1,12 +1,14 @@
 package com.example.myapplication.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack // Import Agregado
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Warning
@@ -15,130 +17,251 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
-import com.example.myapplication.models.LogEntry
+import com.example.myapplication.utils.DeviceSession // Importante para saber qué dispositivo es
 import com.google.firebase.Firebase
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.database
-import java.text.SimpleDateFormat
-import java.util.*
+
+// Modelo local para unir el dato del Arduino con la descripción del Usuario
+data class HistorialItem(
+    val hora: String,
+    val db: Int,
+    val descripcion: String = ""
+)
 
 @Composable
 fun PantallaHistorial(navController: NavHostController) {
-    val dbPath = "historial_logs"
-    var logs by remember { mutableStateOf(listOf<LogEntry>()) }
+    val context = LocalContext.current
+    val deviceId = DeviceSession.currentDeviceId
+    val deviceName = DeviceSession.currentDeviceName
+
+    // Rutas de Firebase
+    val dbPathDatos = "devices_data/$deviceId/historial_hoy"
+    val dbPathDesc = "devices_data/$deviceId/historial_descripciones"
+
+    // Estados
+    var historialLista by remember { mutableStateOf(listOf<HistorialItem>()) }
+    var rawDatos by remember { mutableStateOf(mapOf<String, Int>()) }
+    var rawDescripciones by remember { mutableStateOf(mapOf<String, String>()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    DisposableEffect(Unit) {
-        val database = Firebase.database
-        val myRef = database.getReference(dbPath)
+    // Estados para el Diálogo de Descripción
+    var showDialog by remember { mutableStateOf(false) }
+    var selectedHour by remember { mutableStateOf("") }
+    var tempDescription by remember { mutableStateOf("") }
 
-        val listener = object : ValueEventListener {
+    // Conexión a Firebase
+    DisposableEffect(Unit) {
+        val db = Firebase.database
+        val refDatos = db.getReference(dbPathDatos)
+        val refDesc = db.getReference(dbPathDesc)
+
+        // 1. Escuchar los datos del Arduino (Horas y dB)
+        val listenerDatos = object : ValueEventListener {
             override fun onDataChange(snapshot: DataSnapshot) {
-                val list = mutableListOf<LogEntry>()
+                val mapaTemp = mutableMapOf<String, Int>()
                 for (child in snapshot.children) {
-                    val entry = child.getValue(LogEntry::class.java)
-                    if (entry != null) list.add(0, entry) // Agregar al inicio para ver el más reciente
+                    val hora = child.key ?: ""
+                    val valor = child.getValue(Int::class.java) ?: 0
+                    mapaTemp[hora] = valor
                 }
-                logs = list
+                rawDatos = mapaTemp
                 isLoading = false
             }
             override fun onCancelled(error: DatabaseError) { isLoading = false }
         }
-        myRef.addValueEventListener(listener)
-        // Opcional: Escribir datos dummy si está vacío para probar
-        // if (logs.isEmpty()) createDummyLogs(myRef)
-        onDispose { myRef.removeEventListener(listener) }
+
+        // 2. Escuchar las descripciones del Usuario
+        val listenerDesc = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val mapaTemp = mutableMapOf<String, String>()
+                for (child in snapshot.children) {
+                    val hora = child.key ?: ""
+                    val texto = child.getValue(String::class.java) ?: ""
+                    mapaTemp[hora] = texto
+                }
+                rawDescripciones = mapaTemp
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        }
+
+        refDatos.addValueEventListener(listenerDatos)
+        refDesc.addValueEventListener(listenerDesc)
+
+        onDispose {
+            refDatos.removeEventListener(listenerDatos)
+            refDesc.removeEventListener(listenerDesc)
+        }
+    }
+
+    // Unir los dos mapas (Datos + Descripciones) en una sola lista ordenada
+    LaunchedEffect(rawDatos, rawDescripciones) {
+        val listaUnida = rawDatos.map { (hora, db) ->
+            HistorialItem(
+                hora = hora,
+                db = db,
+                descripcion = rawDescripciones[hora] ?: ""
+            )
+        }.sortedByDescending { it.hora } // Ordenar por hora (la más reciente arriba)
+        historialLista = listaUnida
     }
 
     Scaffold(containerColor = Color(0xFF1A1C29)) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding).padding(16.dp)) {
 
-            // --- CABECERA CON BOTÓN ATRÁS ---
+            // --- CABECERA ---
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(bottom = 8.dp)
             ) {
-                // 1. Botón Atrás
                 IconButton(onClick = { navController.popBackStack() }) {
-                    Icon(
-                        imageVector = Icons.Default.ArrowBack,
-                        contentDescription = "Volver",
-                        tint = Color.Gray
-                    )
+                    Icon(Icons.Default.ArrowBack, contentDescription = "Volver", tint = Color.Gray)
                 }
-
-                // 2. Título pequeño
-                Text(
-                    text = "Historial de Registros",
-                    color = Color.Gray,
-                    fontSize = 14.sp
-                )
+                Column {
+                    Text("Historial Diario", color = Color.Gray, fontSize = 14.sp)
+                    Text(deviceName, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp)
+                }
             }
 
-            // Título Principal
             Text(
-                text = "Sound Level Log",
+                text = "Registro de Eventos",
                 color = Color.White,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 12.dp) // Un pequeño ajuste para alinear visualmente
+                modifier = Modifier.padding(start = 12.dp)
             )
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Valor promedio simple de los logs cargados
-            val avg = if (logs.isNotEmpty()) logs.map { it.db }.average().toInt() else 0
+            // Promedio del día
+            val avg = if (historialLista.isNotEmpty()) historialLista.map { it.db }.average().toInt() else 0
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text("$avg dB (Avg)", fontSize = 40.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("$avg dB", fontSize = 40.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Promedio Hoy", color = Color.Gray, fontSize = 12.sp)
+                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
-            Text("Detailed Log", color = Color.White, fontWeight = FontWeight.Bold)
+            Text("Detalle por Hora (Toca para editar)", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
             Spacer(modifier = Modifier.height(10.dp))
 
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+            } else if (historialLista.isEmpty()) {
+                Text("No hay registros hoy todavía.", color = Color.Gray, modifier = Modifier.align(Alignment.CenterHorizontally))
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    items(logs) { log ->
-                        LogItemRow(log)
+                    items(historialLista) { item ->
+                        LogItemRow(item) {
+                            // Al hacer click, abrir diálogo
+                            selectedHour = item.hora
+                            tempDescription = item.descripcion
+                            showDialog = true
+                        }
                     }
                 }
             }
         }
     }
+
+    // --- DIÁLOGO PARA AGREGAR DESCRIPCIÓN ---
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            title = { Text("Agregar Nota") },
+            text = {
+                Column {
+                    Text("Hora: $selectedHour:00", fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = tempDescription,
+                        onValueChange = { tempDescription = it },
+                        label = { Text("Descripción (ej: Camión pasó)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    // Guardar solo la descripción en Firebase
+                    val db = Firebase.database
+                    db.getReference("devices_data/$deviceId/historial_descripciones/$selectedHour")
+                        .setValue(tempDescription)
+                    showDialog = false
+                }) {
+                    Text("Guardar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDialog = false }) { Text("Cancelar") }
+            }
+        )
+    }
 }
 
 @Composable
-fun LogItemRow(log: LogEntry) {
-    val color = when(log.type) {
-        "danger" -> Color(0xFFEF4444)
-        "warning" -> Color(0xFFF59E0B)
-        else -> Color(0xFF10B981)
+fun LogItemRow(item: HistorialItem, onClick: () -> Unit) {
+    val color = when {
+        item.db >= 80 -> Color(0xFFEF4444) // Rojo
+        item.db >= 60 -> Color(0xFFF59E0B) // Amarillo
+        else -> Color(0xFF10B981)          // Verde
     }
-    val icon = when(log.type) {
-        "danger" -> Icons.Default.Warning
-        "warning" -> Icons.Default.Notifications
+
+    val icon = when {
+        item.db >= 80 -> Icons.Default.Warning
+        item.db >= 60 -> Icons.Default.Notifications
         else -> Icons.Default.Info
     }
 
-    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF252836)), modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(40.dp).background(color.copy(alpha=0.2f), RoundedCornerShape(20.dp)), contentAlignment = Alignment.Center) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF252836)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() } // Click para editar
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Icono Circular
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .background(color.copy(alpha = 0.2f), RoundedCornerShape(20.dp)),
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(icon, contentDescription = null, tint = color)
             }
+
             Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text("${log.db} dB", color = Color.White, fontWeight = FontWeight.Bold)
-                val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
-                Text(sdf.format(Date(log.timestamp)), color = Color.Gray, fontSize = 12.sp)
+
+            // Datos Centrales
+            Column(modifier = Modifier.weight(1f)) {
+                Text("${item.db} dB Max", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Hora: ${item.hora}:00 - ${item.hora}:59", color = Color.Gray, fontSize = 12.sp)
+
+                // Mostrar descripción si existe
+                if (item.descripcion.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "📝 ${item.descripcion}",
+                        color = MaterialTheme.colorScheme.primary, // Color destacado
+                        fontSize = 13.sp,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                    )
+                }
             }
+
+            // Icono de edición pequeño
+            Icon(Icons.Default.Edit, contentDescription = "Editar", tint = Color.DarkGray, modifier = Modifier.size(16.dp))
         }
     }
 }
